@@ -35,8 +35,15 @@ For testing through python, change and run this code.
 
 import numpy as np
 import tensorflow as tf
+import Image
+import csv
+import numpy
+import cv2
+import matplotlib.pyplot as plt
+import glob
+import os
 
-imagePath = '/tmp/imagenet/flower.jpg'
+imagePath = '/tmp/1.jpg'
 modelFullPath = '/tmp/output_graph.pb'
 labelsFullPath = '/tmp/output_labels.txt'
 
@@ -52,34 +59,54 @@ def create_graph():
 
 def run_inference_on_image():
     answer = None
-
+    b = open('test.csv', 'w')
+    writer = csv.writer(b)
+    writer.writerows([['Id','Prediction']])
     if not tf.gfile.Exists(imagePath):
         tf.logging.fatal('File does not exist %s', imagePath)
         return answer
 
-    image_data = tf.gfile.FastGFile(imagePath, 'rb').read()
+    #image_data = tf.gfile.FastGFile(imagePath, 'rb').read()
 
     # Creates graph from saved GraphDef.
     create_graph()
 
     with tf.Session() as sess:
+      
+        path = "data/val/"
+        ext = "jpg"
+        cwd = os.getcwd()
+        cwd=cwd+'/'
+        imgs_files = sorted(glob.glob(os.path.join(path, '*.' + ext)))
+        #data = numpy.array(read_data)
+        print(len(imgs_files))
+        for image_number in range(len(imgs_files)):
+            image_data = tf.gfile.FastGFile(imgs_files[image_number], 'rb').read()
+            softmax_tensor = sess.graph.get_tensor_by_name('final_result:0')
+            predictions = sess.run(softmax_tensor,
+                                   {'DecodeJpeg/contents:0': image_data})
+            predictions = np.squeeze(predictions)
 
-        softmax_tensor = sess.graph.get_tensor_by_name('final_result:0')
-        predictions = sess.run(softmax_tensor,
-                               {'DecodeJpeg/contents:0': image_data})
-        predictions = np.squeeze(predictions)
-
-        top_k = predictions.argsort()[-5:][::-1]  # Getting top 5 predictions
-        f = open(labelsFullPath, 'rb')
-        lines = f.readlines()
-        labels = [str(w).replace("\n", "") for w in lines]
-        for node_id in top_k:
-            human_string = labels[node_id]
-            score = predictions[node_id]
-            print('%s (score = %.5f)' % (human_string, score))
-
-        answer = labels[top_k[0]]
-        return answer
+            top_k = predictions.argsort()[-5:][::-1]  # Getting top 5 predictions
+            print(top_k)
+            f = open(labelsFullPath, 'rb')
+            lines = f.readlines()
+            labels = [str(w).replace("\n", "") for w in lines]
+            rn=0
+            for node_id in top_k:
+                human_string = labels[node_id]
+                if rn == 0:
+                    writer.writerows([[image_number+1,human_string]])
+                    rn=1    
+                #score = predictions[node_id]
+                #print('%s (score = %.5f)' % (human_string, score))
+            #human_string = labels[0]
+            #score = predictions[0]
+            #print('%s (score = %.5f)' % (human_string, score))
+            #writer.writerows([[image_number+1,human_string]])
+     
+        #answer = labels[top_k[0]]
+        #return answer
 
 
 if __name__ == '__main__':
